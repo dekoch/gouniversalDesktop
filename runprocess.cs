@@ -1,5 +1,8 @@
-﻿using System.Diagnostics;
+﻿using System;
+using System.Diagnostics;
+using System.IO;
 using System.Threading;
+using System.Windows;
 
 namespace gouniversalDesktop
 {
@@ -8,14 +11,21 @@ namespace gouniversalDesktop
         private Thread exeThread;
         private Process exeProcess;
         private readonly object processLock = new object();
+        private bool hasStarted;
         private bool hasExited;
         private string exeFileName;
 
         public void Start(string fileName)
         {
+            if (File.Exists(fileName) == false)
+            {
+                return;
+            }
+
             lock (processLock)
             {
-                hasExited = true;
+                hasStarted = false;
+                hasExited = false;
                 exeFileName = fileName;
             }
 
@@ -28,7 +38,7 @@ namespace gouniversalDesktop
             {
                 lock (processLock)
                 {
-                    if (hasExited == false)
+                    if (hasStarted)
                     {
                         return;
                     }
@@ -44,11 +54,16 @@ namespace gouniversalDesktop
 
             lock (processLock)
             {
+                if (hasStarted == false)
+                {
+                    return;
+                }
+
                 exited = hasExited;
             }
 
-            if (exited == false) {
-
+            if (exited == false)
+            {
                 exeProcess.Kill();
                 exeProcess.WaitForExit();
                 exeProcess.Close();
@@ -89,28 +104,22 @@ namespace gouniversalDesktop
             ProcessStartInfo startInfo = new ProcessStartInfo();
             startInfo.CreateNoWindow = true;
             startInfo.UseShellExecute = false;
+            startInfo.WindowStyle = ProcessWindowStyle.Hidden;
 
             lock (processLock)
             {
                 startInfo.FileName = exeFileName;
+                hasStarted = true;
             }
-
-            startInfo.WindowStyle = ProcessWindowStyle.Hidden;
 
             try
             {
                 exeProcess = Process.Start(startInfo);
-
-                lock (processLock)
-                {
-                    hasExited = false;
-                }
-
                 exeProcess.WaitForExit();
             }
-            catch
+            catch (Exception e)
             {
-                // Log error.
+                MessageBox.Show(e.ToString());
             }
 
             lock (processLock)
